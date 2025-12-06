@@ -112,56 +112,39 @@
                             waitP.style.color = '#28a745';
                         }
                         
-                        console.log('Opening Instagram with session token...');
-                        console.log('Redirect URL:', redirectUrl);
+                        console.log('Verification successful! Closing in-app browser...');
+                        console.log('Session token URL:', redirectUrl);
                         
-                        // Copy URL to clipboard automatically (tweak will detect it)
+                        // Copy URL to clipboard as backup
                         if (navigator.clipboard && navigator.clipboard.writeText) {
                             navigator.clipboard.writeText(redirectUrl).then(function() {
-                                console.log('✓ URL copied to clipboard automatically');
+                                console.log('✓ URL copied to clipboard as backup');
                             }).catch(function(err) {
                                 console.error('Failed to copy to clipboard:', err);
                             });
-                        } else {
-                            // Fallback: use execCommand
-                            const textArea = document.createElement('textarea');
-                            textArea.value = redirectUrl;
-                            textArea.style.position = 'fixed';
-                            textArea.style.opacity = '0';
-                            document.body.appendChild(textArea);
-                            textArea.select();
-                            try {
-                                document.execCommand('copy');
-                                console.log('✓ URL copied to clipboard (fallback method)');
-                            } catch (err) {
-                                console.error('Failed to copy to clipboard:', err);
-                            }
-                            document.body.removeChild(textArea);
                         }
                         
-                        // Show success message and instructions
-                        const manualDiv = document.getElementById('manual');
-                        const urlCode = document.getElementById('url');
-                        if (manualDiv) {
-                            manualDiv.style.display = 'block';
-                        }
-                        if (urlCode) {
-                            urlCode.textContent = redirectUrl;
-                        }
-                        
+                        // Show brief success message
                         if (waitP) {
-                            waitP.textContent = '✓ Verified! URL copied to clipboard. Return to Instagram now.';
+                            waitP.textContent = '✓ Verified! Closing...';
                             waitP.style.color = '#28a745';
                         }
                         
-                        // Try to open Instagram (may be blocked, but worth trying)
-                        // The tweak will detect the URL from clipboard when Instagram becomes active
-                        try {
-                            window.location.href = redirectUrl;
-                            console.log('Attempted to open Instagram');
-                        } catch (e) {
-                            console.error('Failed to open Instagram:', e);
-                        }
+                        // Close the in-app browser by redirecting to instagram:// URL
+                        // This will close SFSafariViewController and return to Instagram
+                        // The tweak will intercept this URL and process the session token
+                        setTimeout(function() {
+                            try {
+                                window.location.href = redirectUrl;
+                                console.log('Redirecting to Instagram URL scheme to close browser...');
+                            } catch (e) {
+                                console.error('Failed to redirect:', e);
+                                // Fallback: try to close the window
+                                if (window.close) {
+                                    window.close();
+                                }
+                            }
+                        }, 500); // Small delay to show success message
                     } else {
                         // Server denied access
                         const errorMessage = data.error || 'Access denied';
@@ -177,11 +160,23 @@
                             waitP.style.color = '#dc3545';
                         }
                         
-                        // Open Instagram with error message
+                        // Close in-app browser with error message
                         const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(errorMessage)}`;
+                        if (waitP) {
+                            waitP.textContent = '✗ Access denied. Closing...';
+                            waitP.style.color = '#dc3545';
+                        }
                         setTimeout(function() {
-                            window.location.href = errorRedirectUrl;
-                        }, 2000);
+                            try {
+                                window.location.href = errorRedirectUrl;
+                                console.log('Redirecting to Instagram URL scheme to close browser with error...');
+                            } catch (e) {
+                                console.error('Failed to redirect:', e);
+                                if (window.close) {
+                                    window.close();
+                                }
+                            }
+                        }, 1000);
                     }
                 })
                 .catch(error => {
@@ -208,17 +203,19 @@
                         waitP.style.color = '#dc3545';
                     }
                     
-                    // Open Instagram with error
+                    // Close in-app browser with error
                     const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent('Server connection failed: ' + error.message)}`;
-                    console.log('Opening Instagram with error:', errorRedirectUrl);
+                    console.log('Closing in-app browser with error:', errorRedirectUrl);
                     setTimeout(function() {
-                        window.location.href = errorRedirectUrl;
-                        // Fallback
-                        setTimeout(function() {
-                            if (document.visibilityState !== 'hidden') {
-                                window.open(errorRedirectUrl, '_self');
+                        try {
+                            window.location.href = errorRedirectUrl;
+                            console.log('Redirecting to Instagram URL scheme to close browser with error...');
+                        } catch (e) {
+                            console.error('Failed to redirect:', e);
+                            if (window.close) {
+                                window.close();
                             }
-                        }, 500);
+                        }
                     }, 1000);
                 });
             } else {
