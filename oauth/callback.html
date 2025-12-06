@@ -63,9 +63,11 @@
                 }
             };
             
-            // Redirect to Instagram custom scheme
+            // Redirect to Instagram using our custom URL scheme
+            // Use discordoauthdrm:// which is registered in the tweak's Info.plist
             if (code) {
-                const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+                // Use our custom scheme that the tweak handles
+                const redirectUrl = `discordoauthdrm://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
                 console.log('Redirecting to:', redirectUrl);
                 console.log('Full redirect URL:', fullRedirectUrl);
                 
