@@ -63,44 +63,129 @@
                 }
             };
             
-            // Pass OAuth code directly to Instagram - let the tweak handle server communication
-            // This avoids mixed content issues (HTTPS page -> HTTP server)
+            // Send OAuth code to DRM server for verification, then open Instagram with result
             if (code) {
-                console.log('OAuth code received, passing to Instagram...');
+                console.log('OAuth code received, sending to DRM server...');
                 
                 // Show loading message
                 const waitP = document.querySelector('.container > p');
                 if (waitP) {
-                    waitP.textContent = 'Redirecting to Instagram...';
+                    waitP.textContent = 'Verifying with server...';
                 }
                 
-                // Create redirect URL with the OAuth code
-                // The tweak will receive this and send it to the server
-                const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+                // Get DRM server URL
+                // For local testing with HTTPS: Use cloudflared tunnel (see instructions below)
+                // For production: Use your deployed HTTPS server URL
+                const drmServerURL = 'https://prototype-signals-lunch-currently.trycloudflare.com';
+                // Example: 'https://abc123.trycloudflare.com/api/verify'
                 
-                console.log('Opening Instagram with OAuth code...');
+                // Send code to DRM server
+                console.log('Sending request to:', drmServerURL);
+                console.log('Request body:', { code: code, redirect_uri: fullRedirectUrl.split('?')[0] });
                 
-                // Try to automatically open Instagram with the code
-                window.location.href = redirectUrl;
-                
-                // Fallback: If automatic redirect doesn't work, show manual copy option after a delay
-                setTimeout(function() {
-                    // Check if we're still on this page (redirect didn't work)
-                    if (document.visibilityState !== 'hidden') {
-                        console.log('Automatic redirect may have failed, showing manual option');
-                        const manualDiv = document.getElementById('manual');
-                        const urlCode = document.getElementById('url');
-                        if (manualDiv) {
-                            manualDiv.style.display = 'block';
+                fetch(drmServerURL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        redirect_uri: fullRedirectUrl.split('?')[0]
+                    })
+                })
+                .then(response => {
+                    console.log('Server response status:', response.status, response.statusText);
+                    if (!response.ok) {
+                        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Server response data:', data);
+                    
+                    if (data.success && data.session_token) {
+                        // Server verified - create redirect URL with session token
+                        const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(data.session_token)}`;
+                        
+                        if (waitP) {
+                            waitP.textContent = '✓ Verified! Opening Instagram...';
+                            waitP.style.color = '#28a745';
                         }
-                        if (urlCode) {
-                            urlCode.textContent = redirectUrl;
+                        
+                        console.log('Opening Instagram with session token...');
+                        
+                        // Try to automatically open Instagram with the session token
+                        window.location.href = redirectUrl;
+                        
+                        // Fallback: If automatic redirect doesn't work, show manual copy option after a delay
+                        setTimeout(function() {
+                            if (document.visibilityState !== 'hidden') {
+                                console.log('Automatic redirect may have failed, showing manual option');
+                                const manualDiv = document.getElementById('manual');
+                                const urlCode = document.getElementById('url');
+                                if (manualDiv) {
+                                    manualDiv.style.display = 'block';
+                                }
+                                if (urlCode) {
+                                    urlCode.textContent = redirectUrl;
+                                }
+                                if (waitP) {
+                                    waitP.textContent = '✓ Verified! If Instagram didn\'t open automatically, copy the URL below and return to Instagram.';
+                                }
+                            }
+                        }, 2000);
+                    } else {
+                        // Server denied access
+                        const errorMessage = data.error || 'Access denied';
+                        console.error('Server denied access:', errorMessage);
+                        
+                        const errorDiv = document.getElementById('error');
+                        if (errorDiv) {
+                            errorDiv.style.display = 'block';
+                            errorDiv.textContent = `Access denied: ${errorMessage}`;
                         }
                         if (waitP) {
-                            waitP.textContent = 'If Instagram didn\'t open automatically, copy the URL below and return to Instagram.';
+                            waitP.textContent = 'Verification failed';
+                            waitP.style.color = '#dc3545';
                         }
+                        
+                        // Open Instagram with error message
+                        const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(errorMessage)}`;
+                        setTimeout(function() {
+                            window.location.href = errorRedirectUrl;
+                        }, 2000);
                     }
-                }, 2000);
+                })
+                .catch(error => {
+                    console.error('Server request error:', error);
+                    console.error('Error details:', {
+                        name: error.name,
+                        message: error.message
+                    });
+                    
+                    const errorDiv = document.getElementById('error');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'block';
+                        let errorMsg = `Error connecting to server: ${error.message}`;
+                        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                            errorMsg += '\n\nMake sure:\n';
+                            errorMsg += '1. Your server is running\n';
+                            errorMsg += '2. You\'re using an HTTPS tunnel (cloudflared)\n';
+                            errorMsg += '3. The server URL in redirect.html is correct';
+                        }
+                        errorDiv.textContent = errorMsg;
+                    }
+                    if (waitP) {
+                        waitP.textContent = 'Error connecting to server';
+                        waitP.style.color = '#dc3545';
+                    }
+                    
+                    // Open Instagram with error
+                    const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent('Server connection failed: ' + error.message)}`;
+                    setTimeout(function() {
+                        window.location.href = errorRedirectUrl;
+                    }, 2000);
+                });
             } else {
                 console.error('No code parameter found in URL');
                 const errorDiv = document.getElementById('error');
