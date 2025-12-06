@@ -85,22 +85,79 @@
                     waitP.style.display = 'none';
                 }
                 
-                // Try to redirect to Instagram
-                // Method 1: window.location
-                try {
-                    window.location.href = redirectUrl;
-                } catch(e) {
-                    console.error('window.location failed:', e);
+                // PRIMARY METHOD: Copy to clipboard immediately (this is the most reliable)
+                // This happens on page load, so it should work even if URL opening fails
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(fullRedirectUrl).then(function() {
+                        console.log('✓ Copied redirect URL to clipboard (primary method)');
+                        const button = document.getElementById('copy-button');
+                        if (button) {
+                            button.textContent = '✓ Copied!';
+                            button.style.background = '#28a745';
+                        }
+                    }).catch(function(err) {
+                        console.error('Failed to copy to clipboard:', err);
+                    });
+                } else {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = fullRedirectUrl;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        console.log('✓ Copied redirect URL to clipboard (fallback method)');
+                        const button = document.getElementById('copy-button');
+                        if (button) {
+                            button.textContent = '✓ Copied!';
+                            button.style.background = '#28a745';
+                        }
+                    } catch (err) {
+                        console.error('Failed to copy to clipboard:', err);
+                    }
+                    document.body.removeChild(textArea);
                 }
                 
-                // Method 2: Create a link and click it (more reliable)
+                // SECONDARY METHOD: Try to open Instagram URL scheme (may not work from Safari)
+                // Try multiple methods with delays
                 setTimeout(function() {
-                    const link = document.createElement('a');
-                    link.href = redirectUrl;
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    try {
+                        window.location.href = redirectUrl;
+                        console.log('Attempted window.location redirect');
+                    } catch(e) {
+                        console.error('window.location failed:', e);
+                    }
+                }, 100);
+                
+                setTimeout(function() {
+                    try {
+                        const link = document.createElement('a');
+                        link.href = redirectUrl;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(function() {
+                            document.body.removeChild(link);
+                        }, 100);
+                        console.log('Attempted link.click redirect');
+                    } catch(e) {
+                        console.error('link.click failed:', e);
+                    }
+                }, 300);
+                
+                // Show message that URL was copied and Instagram should open
+                setTimeout(function() {
+                    const container = document.querySelector('.container');
+                    if (container) {
+                        const message = document.createElement('p');
+                        message.style.color = '#28a745';
+                        message.style.fontWeight = 'bold';
+                        message.style.marginTop = '15px';
+                        message.textContent = '✓ URL copied! Return to Instagram to complete authentication.';
+                        container.insertBefore(message, container.firstChild.nextSibling);
+                    }
                 }, 500);
             } else {
                 console.error('No code parameter found in URL');
