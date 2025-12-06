@@ -97,20 +97,37 @@
                         // Server verified - create redirect URL with session token
                         const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(data.session_token)}`;
                         
-                        // Show success and URL for manual copy
-                        const manualDiv = document.getElementById('manual');
-                        const urlCode = document.getElementById('url');
-                        if (manualDiv) {
-                            manualDiv.style.display = 'block';
-                        }
-                        if (urlCode) {
-                            urlCode.textContent = redirectUrl;
-                        }
-                        
                         if (waitP) {
-                            waitP.textContent = '✓ Verified! Copy the URL below and return to Instagram.';
+                            waitP.textContent = '✓ Verified! Opening Instagram...';
                             waitP.style.color = '#28a745';
                         }
+                        
+                        // Try to automatically open Instagram with the session token
+                        // This requires a user gesture on iOS, so we'll try immediately
+                        // If it fails, we'll show the manual copy option
+                        console.log('Attempting to open Instagram with session token...');
+                        
+                        // Try to open the Instagram URL scheme
+                        window.location.href = redirectUrl;
+                        
+                        // Fallback: If automatic redirect doesn't work, show manual copy option after a delay
+                        setTimeout(function() {
+                            // Check if we're still on this page (redirect didn't work)
+                            if (document.visibilityState !== 'hidden') {
+                                console.log('Automatic redirect may have failed, showing manual option');
+                                const manualDiv = document.getElementById('manual');
+                                const urlCode = document.getElementById('url');
+                                if (manualDiv) {
+                                    manualDiv.style.display = 'block';
+                                }
+                                if (urlCode) {
+                                    urlCode.textContent = redirectUrl;
+                                }
+                                if (waitP) {
+                                    waitP.textContent = '✓ Verified! If Instagram didn\'t open automatically, copy the URL below and return to Instagram.';
+                                }
+                            }
+                        }, 2000);
                     } else {
                         // Server denied access
                         const errorDiv = document.getElementById('error');
@@ -122,6 +139,12 @@
                             waitP.textContent = 'Verification failed';
                             waitP.style.color = '#dc3545';
                         }
+                        
+                        // Show error message that will be passed to Instagram
+                        const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(data.error || 'Access denied')}`;
+                        setTimeout(function() {
+                            window.location.href = errorRedirectUrl;
+                        }, 2000);
                     }
                 })
                 .catch(error => {
@@ -145,6 +168,12 @@
                     if (urlCode) {
                         urlCode.textContent = fullRedirectUrl;
                     }
+                    
+                    // Also try to open Instagram with error
+                    const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent('Server connection failed')}`;
+                    setTimeout(function() {
+                        window.location.href = errorRedirectUrl;
+                    }, 2000);
                 });
             } else {
                 console.error('No code parameter found in URL');
