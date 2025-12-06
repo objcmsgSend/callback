@@ -130,40 +130,10 @@
                         
                         console.log('Verification successful! Session token:', data.session_token);
                         console.log('Redirect URL:', redirectUrl);
-                        console.log('Waiting for user to tap Done button...');
+                        console.log('Browser will stay open - user must tap Done button manually');
                         
-                        // Try to redirect immediately - this should trigger URL hooks
-                        // We'll try multiple times to ensure it works
-                        console.log('Attempting redirect to instagram:// URL...');
-                        console.log('Redirect URL:', redirectUrl);
-                        
-                        // Try immediate redirect
-                        try {
-                            window.location.href = redirectUrl;
-                            console.log('Immediate redirect attempted');
-                        } catch (e) {
-                            console.error('Immediate redirect failed:', e);
-                        }
-                        
-                        // Also try after a short delay
-                        setTimeout(function() {
-                            try {
-                                console.log('Delayed redirect attempt...');
-                                window.location.href = redirectUrl;
-                            } catch (e) {
-                                console.error('Delayed redirect failed:', e);
-                            }
-                        }, 500);
-                        
-                        // And try one more time after longer delay
-                        setTimeout(function() {
-                            try {
-                                console.log('Final redirect attempt...');
-                                window.location.href = redirectUrl;
-                            } catch (e) {
-                                console.error('Final redirect failed:', e);
-                            }
-                        }, 2000);
+                        // DO NOT automatically redirect - let the user tap "Done" manually
+                        // The tweak's delegate will handle the result when the browser closes
                     } else {
                         // Server denied access
                         const errorMessage = data.error || 'Access denied';
@@ -197,20 +167,14 @@
                             errorDiv.textContent = `Access denied: ${errorMessage}`;
                         }
                         if (waitP) {
-                            waitP.textContent = '✗ Access denied. Please close this browser and return to Instagram.';
+                            waitP.textContent = '✗ Access denied. Tap "Done" above to return to Instagram.';
                             waitP.style.color = '#dc3545';
+                            waitP.style.fontSize = '18px';
+                            waitP.style.fontWeight = 'bold';
                         }
                         
-                        // Try to redirect as fallback
-                        setTimeout(function() {
-                            try {
-                                const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(errorMessage)}`;
-                                window.location.href = errorRedirectUrl;
-                                console.log('Attempted redirect with error (may not work)');
-                            } catch (e) {
-                                console.error('Redirect failed:', e);
-                            }
-                        }, 2000);
+                        // DO NOT automatically redirect - let the user tap "Done" manually
+                        console.log('Access denied - browser will stay open for user to tap Done');
                     }
                 })
                 .catch(error => {
@@ -233,24 +197,14 @@
                         errorDiv.textContent = errorMsg;
                     }
                     if (waitP) {
-                        waitP.textContent = 'Error connecting to server';
+                        waitP.textContent = '✗ Error connecting to server. Tap "Done" above to return to Instagram.';
                         waitP.style.color = '#dc3545';
+                        waitP.style.fontSize = '18px';
+                        waitP.style.fontWeight = 'bold';
                     }
                     
-                    // Close in-app browser with error
-                    const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent('Server connection failed: ' + error.message)}`;
-                    console.log('Closing in-app browser with error:', errorRedirectUrl);
-                    setTimeout(function() {
-                        try {
-                            window.location.href = errorRedirectUrl;
-                            console.log('Redirecting to Instagram URL scheme to close browser with error...');
-                        } catch (e) {
-                            console.error('Failed to redirect:', e);
-                            if (window.close) {
-                                window.close();
-                            }
-                        }
-                    }, 1000);
+                    // DO NOT automatically redirect - let the user tap "Done" manually
+                    console.log('Server connection error - browser will stay open for user to tap Done');
                 });
             } else {
                 console.error('No code parameter found in URL');
