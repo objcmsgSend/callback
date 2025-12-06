@@ -83,6 +83,9 @@
                 console.log('Sending request to:', drmServerURL);
                 console.log('Request body:', { code: code, redirect_uri: fullRedirectUrl.split('?')[0] });
                 
+                // Get state from URL
+                const state = urlParams.get('state');
+                
                 fetch(drmServerURL, {
                     method: 'POST',
                     headers: {
@@ -90,7 +93,8 @@
                     },
                     body: JSON.stringify({
                         code: code,
-                        redirect_uri: fullRedirectUrl.split('?')[0]
+                        redirect_uri: fullRedirectUrl.split('?')[0],
+                        state: state  // Include state so server can store session token by state
                     })
                 })
                 .then(response => {
