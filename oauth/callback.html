@@ -5,82 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirecting...</title>
     <script>
-        // Extract query parameters from current URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
-        
-        let fullRedirectUrl = window.location.href; // The full URL with code from Discord
-        
-        function copyToClipboard() {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(fullRedirectUrl).then(function() {
-                    console.log('Copied redirect URL to clipboard');
-                    document.getElementById('copy-button').textContent = '✓ Copied!';
-                    document.getElementById('copy-button').style.background = '#28a745';
-                    setTimeout(function() {
-                        document.getElementById('copy-button').textContent = 'Copy URL';
-                        document.getElementById('copy-button').style.background = '#007bff';
-                    }, 2000);
-                }).catch(function(err) {
-                    console.error('Failed to copy to clipboard:', err);
-                    alert('Failed to copy. Please manually copy the URL below.');
-                });
-            } else {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = fullRedirectUrl;
-                textArea.style.position = 'fixed';
-                textArea.style.opacity = '0';
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    console.log('Copied redirect URL to clipboard (fallback method)');
-                    document.getElementById('copy-button').textContent = '✓ Copied!';
-                    document.getElementById('copy-button').style.background = '#28a745';
-                    setTimeout(function() {
-                        document.getElementById('copy-button').textContent = 'Copy URL';
-                        document.getElementById('copy-button').style.background = '#007bff';
-                    }, 2000);
-                } catch (err) {
-                    console.error('Failed to copy to clipboard:', err);
-                    alert('Failed to copy. Please manually copy the URL below.');
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Extract query parameters from current URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            
+            let fullRedirectUrl = window.location.href; // The full URL with code from Discord
+            
+            console.log('Page loaded. Code:', code ? 'present' : 'missing');
+            console.log('Full URL:', fullRedirectUrl);
+            
+            // Make copyToClipboard available globally
+            window.copyToClipboard = function() {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(fullRedirectUrl).then(function() {
+                        console.log('Copied redirect URL to clipboard');
+                        const button = document.getElementById('copy-button');
+                        if (button) {
+                            button.textContent = '✓ Copied!';
+                            button.style.background = '#28a745';
+                            setTimeout(function() {
+                                button.textContent = 'Copy URL';
+                                button.style.background = '#007bff';
+                            }, 2000);
+                        }
+                    }).catch(function(err) {
+                        console.error('Failed to copy to clipboard:', err);
+                        alert('Failed to copy. Please manually copy the URL below.');
+                    });
+                } else {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = fullRedirectUrl;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        console.log('Copied redirect URL to clipboard (fallback method)');
+                        const button = document.getElementById('copy-button');
+                        if (button) {
+                            button.textContent = '✓ Copied!';
+                            button.style.background = '#28a745';
+                            setTimeout(function() {
+                                button.textContent = 'Copy URL';
+                                button.style.background = '#007bff';
+                            }, 2000);
+                        }
+                    } catch (err) {
+                        console.error('Failed to copy to clipboard:', err);
+                        alert('Failed to copy. Please manually copy the URL below.');
+                    }
+                    document.body.removeChild(textArea);
                 }
-                document.body.removeChild(textArea);
+            };
+            
+            // Redirect to Instagram custom scheme
+            if (code) {
+                const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+                console.log('Redirecting to:', redirectUrl);
+                console.log('Full redirect URL:', fullRedirectUrl);
+                
+                // Show the manual section immediately
+                const manualDiv = document.getElementById('manual');
+                const urlCode = document.getElementById('url');
+                if (manualDiv) {
+                    manualDiv.style.display = 'block';
+                }
+                if (urlCode) {
+                    urlCode.textContent = fullRedirectUrl;
+                }
+                
+                // Hide the "Please wait..." message
+                const waitP = document.querySelector('.container > p');
+                if (waitP) {
+                    waitP.style.display = 'none';
+                }
+                
+                // Try to redirect to Instagram
+                // Method 1: window.location
+                try {
+                    window.location.href = redirectUrl;
+                } catch(e) {
+                    console.error('window.location failed:', e);
+                }
+                
+                // Method 2: Create a link and click it (more reliable)
+                setTimeout(function() {
+                    const link = document.createElement('a');
+                    link.href = redirectUrl;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }, 500);
+            } else {
+                console.error('No code parameter found in URL');
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) {
+                    errorDiv.style.display = 'block';
+                }
+                // Also show the URL so user can see what they got
+                const urlCode = document.getElementById('url');
+                if (urlCode) {
+                    urlCode.textContent = fullRedirectUrl;
+                    document.getElementById('manual').style.display = 'block';
+                }
             }
-        }
-        
-        // Redirect to Instagram custom scheme
-        if (code) {
-            const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
-            console.log('Redirecting to:', redirectUrl);
-            console.log('Full redirect URL:', fullRedirectUrl);
-            
-            // Show the manual section immediately
-            document.getElementById('manual').style.display = 'block';
-            document.getElementById('url').textContent = fullRedirectUrl;
-            
-            // Try to redirect to Instagram
-            // Method 1: window.location
-            try {
-                window.location.href = redirectUrl;
-            } catch(e) {
-                console.error('window.location failed:', e);
-            }
-            
-            // Method 2: Create a link and click it (more reliable)
-            setTimeout(function() {
-                const link = document.createElement('a');
-                link.href = redirectUrl;
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }, 500);
-        } else {
-            document.getElementById('error').style.display = 'block';
-        }
+        });
     </script>
     <style>
         body {
