@@ -13,15 +13,57 @@
         // Redirect to Instagram custom scheme
         if (code) {
             const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+            const fullRedirectUrl = window.location.href; // The full URL with code from Discord
             console.log('Redirecting to:', redirectUrl);
+            console.log('Full redirect URL:', fullRedirectUrl);
             
-            // Try to redirect
-            window.location.href = redirectUrl;
+            // Copy the full redirect URL to clipboard as fallback
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fullRedirectUrl).then(function() {
+                    console.log('Copied redirect URL to clipboard');
+                }).catch(function(err) {
+                    console.error('Failed to copy to clipboard:', err);
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = fullRedirectUrl;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    console.log('Copied redirect URL to clipboard (fallback method)');
+                } catch (err) {
+                    console.error('Failed to copy to clipboard:', err);
+                }
+                document.body.removeChild(textArea);
+            }
+            
+            // Try multiple methods to ensure redirect works
+            // Method 1: window.location
+            try {
+                window.location.href = redirectUrl;
+            } catch(e) {
+                console.error('window.location failed:', e);
+            }
+            
+            // Method 2: Create a link and click it (more reliable)
+            setTimeout(function() {
+                const link = document.createElement('a');
+                link.href = redirectUrl;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }, 100);
             
             // Fallback: Show manual instructions if redirect fails
             setTimeout(function() {
                 document.getElementById('manual').style.display = 'block';
-                document.getElementById('url').textContent = redirectUrl;
+                document.getElementById('url').textContent = fullRedirectUrl;
+                document.getElementById('clipboard-notice').style.display = 'block';
             }, 2000);
         } else {
             document.getElementById('error').style.display = 'block';
@@ -77,6 +119,7 @@
         
         <div id="manual">
             <p><strong>If Instagram didn't open automatically:</strong></p>
+            <p id="clipboard-notice" style="display: none; color: green; font-weight: bold;">✓ URL has been copied to your clipboard!</p>
             <p>Copy this URL and paste it in Instagram when prompted:</p>
             <code id="url"></code>
         </div>
