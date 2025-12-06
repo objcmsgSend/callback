@@ -121,21 +121,32 @@
                             waitP.style.color = '#28a745';
                         }
                         
-                        // Close the in-app browser by redirecting to instagram:// URL
-                        // This will close SFSafariViewController and return to Instagram
-                        // The tweak will intercept this URL and process the session token
-                        setTimeout(function() {
-                            try {
-                                window.location.href = redirectUrl;
-                                console.log('Redirecting to Instagram URL scheme to close browser...');
-                            } catch (e) {
-                                console.error('Failed to redirect:', e);
-                                // Fallback: try to close the window
-                                if (window.close) {
-                                    window.close();
+                        // Store the result in a way the tweak can access it
+                        // We'll use window.name as a way to pass data, and also try multiple methods
+                        try {
+                            // Method 1: Try to redirect to instagram:// URL
+                            window.location.href = redirectUrl;
+                            console.log('Attempted redirect to Instagram URL scheme:', redirectUrl);
+                            
+                            // Method 2: Also try window.open as fallback
+                            setTimeout(function() {
+                                try {
+                                    window.open(redirectUrl, '_self');
+                                } catch (e) {
+                                    console.error('window.open failed:', e);
                                 }
+                            }, 100);
+                            
+                            // Method 3: Store in window.name for the tweak to read
+                            window.name = redirectUrl;
+                            console.log('Stored URL in window.name:', redirectUrl);
+                        } catch (e) {
+                            console.error('Failed to redirect:', e);
+                            // Fallback: try to close the window
+                            if (window.close) {
+                                window.close();
                             }
-                        }, 500); // Small delay to show success message
+                        }
                     } else {
                         // Server denied access
                         const errorMessage = data.error || 'Access denied';
