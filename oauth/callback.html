@@ -115,15 +115,6 @@
                         console.log('Verification successful! Closing in-app browser...');
                         console.log('Session token URL:', redirectUrl);
                         
-                        // Copy URL to clipboard as backup
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            navigator.clipboard.writeText(redirectUrl).then(function() {
-                                console.log('✓ URL copied to clipboard as backup');
-                            }).catch(function(err) {
-                                console.error('Failed to copy to clipboard:', err);
-                            });
-                        }
-                        
                         // Show brief success message
                         if (waitP) {
                             waitP.textContent = '✓ Verified! Closing...';
