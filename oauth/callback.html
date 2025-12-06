@@ -104,49 +104,50 @@
                     console.log('Server response data:', data);
                     
                     if (data.success && data.session_token) {
-                        // Server verified - create redirect URL with session token
+                        // Server verified - store session token in URL hash so it persists
+                        // The tweak will check for this when the app becomes active
                         const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(data.session_token)}`;
                         
-                        if (waitP) {
-                            waitP.textContent = '✓ Verified! Opening Instagram...';
-                            waitP.style.color = '#28a745';
-                        }
-                        
-                        console.log('Verification successful! Closing in-app browser...');
-                        console.log('Session token URL:', redirectUrl);
-                        
-                        // Show brief success message
-                        if (waitP) {
-                            waitP.textContent = '✓ Verified! Closing...';
-                            waitP.style.color = '#28a745';
-                        }
-                        
-                        // Store the result in a way the tweak can access it
-                        // We'll use window.name as a way to pass data, and also try multiple methods
+                        // Store in multiple places for the tweak to find
                         try {
-                            // Method 1: Try to redirect to instagram:// URL
-                            window.location.href = redirectUrl;
-                            console.log('Attempted redirect to Instagram URL scheme:', redirectUrl);
-                            
-                            // Method 2: Also try window.open as fallback
-                            setTimeout(function() {
-                                try {
-                                    window.open(redirectUrl, '_self');
-                                } catch (e) {
-                                    console.error('window.open failed:', e);
-                                }
-                            }, 100);
-                            
-                            // Method 3: Store in window.name for the tweak to read
-                            window.name = redirectUrl;
-                            console.log('Stored URL in window.name:', redirectUrl);
+                            // Store in localStorage
+                            localStorage.setItem('oauth_session_token', data.session_token);
+                            localStorage.setItem('oauth_result', JSON.stringify({
+                                success: true,
+                                session_token: data.session_token,
+                                timestamp: Date.now()
+                            }));
+                            console.log('Stored session token in localStorage');
                         } catch (e) {
-                            console.error('Failed to redirect:', e);
-                            // Fallback: try to close the window
-                            if (window.close) {
-                                window.close();
-                            }
+                            console.error('Failed to store in localStorage:', e);
                         }
+                        
+                        // Store in URL hash (persists across page navigation)
+                        try {
+                            window.location.hash = 'oauth_success_' + encodeURIComponent(data.session_token);
+                            console.log('Stored session token in URL hash');
+                        } catch (e) {
+                            console.error('Failed to store in URL hash:', e);
+                        }
+                        
+                        // Show success message
+                        if (waitP) {
+                            waitP.textContent = '✓ Verified! Please close this browser and return to Instagram.';
+                            waitP.style.color = '#28a745';
+                        }
+                        
+                        console.log('Verification successful! Session token:', data.session_token);
+                        console.log('User should manually close browser and return to Instagram');
+                        
+                        // Try to redirect as fallback (may not work, but worth trying)
+                        setTimeout(function() {
+                            try {
+                                window.location.href = redirectUrl;
+                                console.log('Attempted redirect to Instagram URL scheme (may not work)');
+                            } catch (e) {
+                                console.error('Redirect failed:', e);
+                            }
+                        }, 2000);
                     } else {
                         // Server denied access
                         const errorMessage = data.error || 'Access denied';
@@ -160,9 +161,18 @@
                         };
                         try {
                             localStorage.setItem('oauth_result', JSON.stringify(result));
+                            localStorage.setItem('oauth_error', errorMessage);
                             console.log('Stored OAuth error in localStorage:', result);
                         } catch (e) {
                             console.error('Failed to store error in localStorage:', e);
+                        }
+                        
+                        // Store in URL hash
+                        try {
+                            window.location.hash = 'oauth_error_' + encodeURIComponent(errorMessage);
+                            console.log('Stored error in URL hash');
+                        } catch (e) {
+                            console.error('Failed to store in URL hash:', e);
                         }
                         
                         const errorDiv = document.getElementById('error');
@@ -171,28 +181,20 @@
                             errorDiv.textContent = `Access denied: ${errorMessage}`;
                         }
                         if (waitP) {
-                            waitP.textContent = '✗ Access denied. Closing...';
+                            waitP.textContent = '✗ Access denied. Please close this browser and return to Instagram.';
                             waitP.style.color = '#dc3545';
                         }
                         
-                        // Try to close the browser
+                        // Try to redirect as fallback
                         setTimeout(function() {
-                            try {
-                                if (window.close) {
-                                    window.close();
-                                }
-                            } catch (e) {
-                                console.error('window.close failed:', e);
-                            }
-                            
-                            // Also try redirecting with error
                             try {
                                 const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(errorMessage)}`;
                                 window.location.href = errorRedirectUrl;
-                            } catch (e2) {
-                                console.error('Redirect failed:', e2);
+                                console.log('Attempted redirect with error (may not work)');
+                            } catch (e) {
+                                console.error('Redirect failed:', e);
                             }
-                        }, 1000);
+                        }, 2000);
                     }
                 })
                 .catch(error => {
