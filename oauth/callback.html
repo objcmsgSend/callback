@@ -152,31 +152,45 @@
                         const errorMessage = data.error || 'Access denied';
                         console.error('Server denied access:', errorMessage);
                         
+                        // Store error in localStorage
+                        const result = {
+                            success: false,
+                            error: errorMessage,
+                            timestamp: Date.now()
+                        };
+                        try {
+                            localStorage.setItem('oauth_result', JSON.stringify(result));
+                            console.log('Stored OAuth error in localStorage:', result);
+                        } catch (e) {
+                            console.error('Failed to store error in localStorage:', e);
+                        }
+                        
                         const errorDiv = document.getElementById('error');
                         if (errorDiv) {
                             errorDiv.style.display = 'block';
                             errorDiv.textContent = `Access denied: ${errorMessage}`;
                         }
                         if (waitP) {
-                            waitP.textContent = 'Verification failed';
-                            waitP.style.color = '#dc3545';
-                        }
-                        
-                        // Close in-app browser with error message
-                        const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(errorMessage)}`;
-                        if (waitP) {
                             waitP.textContent = '✗ Access denied. Closing...';
                             waitP.style.color = '#dc3545';
                         }
+                        
+                        // Try to close the browser
                         setTimeout(function() {
                             try {
-                                window.location.href = errorRedirectUrl;
-                                console.log('Redirecting to Instagram URL scheme to close browser with error...');
-                            } catch (e) {
-                                console.error('Failed to redirect:', e);
                                 if (window.close) {
                                     window.close();
                                 }
+                            } catch (e) {
+                                console.error('window.close failed:', e);
+                            }
+                            
+                            // Also try redirecting with error
+                            try {
+                                const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent(errorMessage)}`;
+                                window.location.href = errorRedirectUrl;
+                            } catch (e2) {
+                                console.error('Redirect failed:', e2);
                             }
                         }, 1000);
                     }
