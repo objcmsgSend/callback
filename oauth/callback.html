@@ -115,54 +115,52 @@
                         console.log('Opening Instagram with session token...');
                         console.log('Redirect URL:', redirectUrl);
                         
-                        // Show clickable button/link immediately (iOS Safari blocks automatic redirects)
+                        // Copy URL to clipboard automatically (tweak will detect it)
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(redirectUrl).then(function() {
+                                console.log('✓ URL copied to clipboard automatically');
+                            }).catch(function(err) {
+                                console.error('Failed to copy to clipboard:', err);
+                            });
+                        } else {
+                            // Fallback: use execCommand
+                            const textArea = document.createElement('textarea');
+                            textArea.value = redirectUrl;
+                            textArea.style.position = 'fixed';
+                            textArea.style.opacity = '0';
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            try {
+                                document.execCommand('copy');
+                                console.log('✓ URL copied to clipboard (fallback method)');
+                            } catch (err) {
+                                console.error('Failed to copy to clipboard:', err);
+                            }
+                            document.body.removeChild(textArea);
+                        }
+                        
+                        // Show success message and instructions
                         const manualDiv = document.getElementById('manual');
                         const urlCode = document.getElementById('url');
                         if (manualDiv) {
                             manualDiv.style.display = 'block';
                         }
-                        
-                        // Create a clickable link button
-                        let openButton = document.getElementById('open-instagram-button');
-                        if (!openButton) {
-                            openButton = document.createElement('button');
-                            openButton.id = 'open-instagram-button';
-                            openButton.textContent = 'Open Instagram';
-                            openButton.style.cssText = 'display: block; width: 100%; padding: 15px; margin: 20px 0; background: #007bff; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; cursor: pointer;';
-                            openButton.onclick = function(e) {
-                                e.preventDefault();
-                                console.log('User clicked button, opening Instagram...');
-                                window.location.href = redirectUrl;
-                                // Also try window.open as fallback
-                                setTimeout(function() {
-                                    if (document.visibilityState !== 'hidden') {
-                                        window.open(redirectUrl, '_self');
-                                    }
-                                }, 100);
-                            };
-                            
-                            // Insert button before the URL code
-                            const container = document.querySelector('.container');
-                            if (container && urlCode && urlCode.parentNode) {
-                                urlCode.parentNode.insertBefore(openButton, urlCode);
-                            }
-                        }
-                        
                         if (urlCode) {
                             urlCode.textContent = redirectUrl;
                         }
                         
                         if (waitP) {
-                            waitP.textContent = '✓ Verified! Tap the button above to open Instagram.';
+                            waitP.textContent = '✓ Verified! URL copied to clipboard. Return to Instagram now.';
                             waitP.style.color = '#28a745';
                         }
                         
-                        // Try automatic redirect (may be blocked by iOS Safari)
+                        // Try to open Instagram (may be blocked, but worth trying)
+                        // The tweak will detect the URL from clipboard when Instagram becomes active
                         try {
                             window.location.href = redirectUrl;
-                            console.log('Attempted automatic redirect');
+                            console.log('Attempted to open Instagram');
                         } catch (e) {
-                            console.error('Automatic redirect failed:', e);
+                            console.error('Failed to open Instagram:', e);
                         }
                     } else {
                         // Server denied access
