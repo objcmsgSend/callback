@@ -63,42 +63,89 @@
                 }
             };
             
-            // Redirect to Instagram using instagram:// scheme
-            // The tweak will intercept this at a low level before Instagram rejects it
+            // Send OAuth code to DRM server for verification
             if (code) {
-                const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
-                console.log('Redirecting to:', redirectUrl);
-                console.log('Full redirect URL:', fullRedirectUrl);
+                console.log('OAuth code received, sending to DRM server...');
                 
-                // Show the manual section immediately
-                const manualDiv = document.getElementById('manual');
-                const urlCode = document.getElementById('url');
-                if (manualDiv) {
-                    manualDiv.style.display = 'block';
-                }
-                if (urlCode) {
-                    urlCode.textContent = fullRedirectUrl;
-                }
-                
-                // Hide the "Please wait..." message
+                // Show loading message
                 const waitP = document.querySelector('.container > p');
                 if (waitP) {
-                    waitP.style.display = 'none';
+                    waitP.textContent = 'Verifying with server...';
                 }
                 
-                // User must manually copy the URL - no automatic redirect
-                // Show instructions
-                setTimeout(function() {
-                    const container = document.querySelector('.container');
-                    if (container) {
-                        const message = document.createElement('p');
-                        message.style.color = '#007bff';
-                        message.style.fontWeight = 'bold';
-                        message.style.marginTop = '15px';
-                        message.textContent = 'Please copy the URL below and return to Instagram to paste it.';
-                        container.insertBefore(message, container.firstChild.nextSibling);
+                // Get DRM server URL - for local testing, use your computer's local IP address
+                // Find your IP with: ifconfig | grep "inet " | grep -v 127.0.0.1
+                // For production, use your deployed server URL
+                const drmServerURL = 'http://192.168.1.116:3000/api/verify';
+                
+                // Send code to DRM server
+                fetch(drmServerURL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        redirect_uri: fullRedirectUrl.split('?')[0] // Base URL without query params
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Server response:', data);
+                    
+                    if (data.success && data.session_token) {
+                        // Server verified - create redirect URL with session token
+                        const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(data.session_token)}`;
+                        
+                        // Show success and URL for manual copy
+                        const manualDiv = document.getElementById('manual');
+                        const urlCode = document.getElementById('url');
+                        if (manualDiv) {
+                            manualDiv.style.display = 'block';
+                        }
+                        if (urlCode) {
+                            urlCode.textContent = redirectUrl;
+                        }
+                        
+                        if (waitP) {
+                            waitP.textContent = '✓ Verified! Copy the URL below and return to Instagram.';
+                            waitP.style.color = '#28a745';
+                        }
+                    } else {
+                        // Server denied access
+                        const errorDiv = document.getElementById('error');
+                        if (errorDiv) {
+                            errorDiv.style.display = 'block';
+                            errorDiv.textContent = `Access denied: ${data.error || 'Unknown error'}`;
+                        }
+                        if (waitP) {
+                            waitP.textContent = 'Verification failed';
+                            waitP.style.color = '#dc3545';
+                        }
                     }
-                }, 100);
+                })
+                .catch(error => {
+                    console.error('Server request error:', error);
+                    const errorDiv = document.getElementById('error');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'block';
+                        errorDiv.textContent = `Error connecting to server: ${error.message}`;
+                    }
+                    if (waitP) {
+                        waitP.textContent = 'Error connecting to server';
+                        waitP.style.color = '#dc3545';
+                    }
+                    
+                    // Fallback: Show URL for manual copy
+                    const manualDiv = document.getElementById('manual');
+                    const urlCode = document.getElementById('url');
+                    if (manualDiv) {
+                        manualDiv.style.display = 'block';
+                    }
+                    if (urlCode) {
+                        urlCode.textContent = fullRedirectUrl;
+                    }
+                });
             } else {
                 console.error('No code parameter found in URL');
                 const errorDiv = document.getElementById('error');
