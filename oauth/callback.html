@@ -63,11 +63,10 @@
                 }
             };
             
-            // Redirect to Instagram using our custom URL scheme
-            // Use discordoauthdrm:// which is registered in the tweak's Info.plist
+            // Redirect to Instagram using instagram:// scheme
+            // The tweak will intercept this at a low level before Instagram rejects it
             if (code) {
-                // Use our custom scheme that the tweak handles
-                const redirectUrl = `discordoauthdrm://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+                const redirectUrl = `instagram://oauth/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
                 console.log('Redirecting to:', redirectUrl);
                 console.log('Full redirect URL:', fullRedirectUrl);
                 
@@ -87,80 +86,19 @@
                     waitP.style.display = 'none';
                 }
                 
-                // PRIMARY METHOD: Copy to clipboard immediately (this is the most reliable)
-                // This happens on page load, so it should work even if URL opening fails
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(fullRedirectUrl).then(function() {
-                        console.log('✓ Copied redirect URL to clipboard (primary method)');
-                        const button = document.getElementById('copy-button');
-                        if (button) {
-                            button.textContent = '✓ Copied!';
-                            button.style.background = '#28a745';
-                        }
-                    }).catch(function(err) {
-                        console.error('Failed to copy to clipboard:', err);
-                    });
-                } else {
-                    // Fallback for older browsers
-                    const textArea = document.createElement('textarea');
-                    textArea.value = fullRedirectUrl;
-                    textArea.style.position = 'fixed';
-                    textArea.style.opacity = '0';
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        console.log('✓ Copied redirect URL to clipboard (fallback method)');
-                        const button = document.getElementById('copy-button');
-                        if (button) {
-                            button.textContent = '✓ Copied!';
-                            button.style.background = '#28a745';
-                        }
-                    } catch (err) {
-                        console.error('Failed to copy to clipboard:', err);
-                    }
-                    document.body.removeChild(textArea);
-                }
-                
-                // SECONDARY METHOD: Try to open Instagram URL scheme (may not work from Safari)
-                // Try multiple methods with delays
-                setTimeout(function() {
-                    try {
-                        window.location.href = redirectUrl;
-                        console.log('Attempted window.location redirect');
-                    } catch(e) {
-                        console.error('window.location failed:', e);
-                    }
-                }, 100);
-                
-                setTimeout(function() {
-                    try {
-                        const link = document.createElement('a');
-                        link.href = redirectUrl;
-                        link.style.display = 'none';
-                        document.body.appendChild(link);
-                        link.click();
-                        setTimeout(function() {
-                            document.body.removeChild(link);
-                        }, 100);
-                        console.log('Attempted link.click redirect');
-                    } catch(e) {
-                        console.error('link.click failed:', e);
-                    }
-                }, 300);
-                
-                // Show message that URL was copied and Instagram should open
+                // User must manually copy the URL - no automatic redirect
+                // Show instructions
                 setTimeout(function() {
                     const container = document.querySelector('.container');
                     if (container) {
                         const message = document.createElement('p');
-                        message.style.color = '#28a745';
+                        message.style.color = '#007bff';
                         message.style.fontWeight = 'bold';
                         message.style.marginTop = '15px';
-                        message.textContent = '✓ URL copied! Return to Instagram to complete authentication.';
+                        message.textContent = 'Please copy the URL below and return to Instagram to paste it.';
                         container.insertBefore(message, container.firstChild.nextSibling);
                     }
-                }, 500);
+                }, 100);
             } else {
                 console.error('No code parameter found in URL');
                 const errorDiv = document.getElementById('error');
