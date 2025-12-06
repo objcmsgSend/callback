@@ -104,48 +104,64 @@
                     console.log('Server response data:', data);
                     
                     if (data.success && data.session_token) {
-                        // Server verified - store session token in URL hash so it persists
-                        // The tweak will check for this when the app becomes active
+                        // Server verified - store session token for the tweak to access
                         const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(data.session_token)}`;
                         
-                        // Store in multiple places for the tweak to find
+                        // Store in URL hash - this will be in the URL when the page is visible
+                        // The tweak can't access it directly, but we'll try to redirect
+                        window.location.hash = 'oauth_success_' + encodeURIComponent(data.session_token);
+                        
+                        // Store in localStorage (can't access from native, but good for debugging)
                         try {
-                            // Store in localStorage
                             localStorage.setItem('oauth_session_token', data.session_token);
-                            localStorage.setItem('oauth_result', JSON.stringify({
-                                success: true,
-                                session_token: data.session_token,
-                                timestamp: Date.now()
-                            }));
+                            localStorage.setItem('oauth_redirect_url', redirectUrl);
                             console.log('Stored session token in localStorage');
                         } catch (e) {
                             console.error('Failed to store in localStorage:', e);
                         }
                         
-                        // Store in URL hash (persists across page navigation)
-                        try {
-                            window.location.hash = 'oauth_success_' + encodeURIComponent(data.session_token);
-                            console.log('Stored session token in URL hash');
-                        } catch (e) {
-                            console.error('Failed to store in URL hash:', e);
-                        }
-                        
                         // Show success message
                         if (waitP) {
-                            waitP.textContent = '✓ Verified! Please close this browser and return to Instagram.';
+                            waitP.textContent = '✓ Verified! Tap "Done" above to return to Instagram.';
                             waitP.style.color = '#28a745';
+                            waitP.style.fontSize = '18px';
+                            waitP.style.fontWeight = 'bold';
                         }
                         
                         console.log('Verification successful! Session token:', data.session_token);
-                        console.log('User should manually close browser and return to Instagram');
+                        console.log('Redirect URL:', redirectUrl);
+                        console.log('Waiting for user to tap Done button...');
                         
-                        // Try to redirect as fallback (may not work, but worth trying)
+                        // Try to redirect immediately - this should trigger URL hooks
+                        // We'll try multiple times to ensure it works
+                        console.log('Attempting redirect to instagram:// URL...');
+                        console.log('Redirect URL:', redirectUrl);
+                        
+                        // Try immediate redirect
+                        try {
+                            window.location.href = redirectUrl;
+                            console.log('Immediate redirect attempted');
+                        } catch (e) {
+                            console.error('Immediate redirect failed:', e);
+                        }
+                        
+                        // Also try after a short delay
                         setTimeout(function() {
                             try {
+                                console.log('Delayed redirect attempt...');
                                 window.location.href = redirectUrl;
-                                console.log('Attempted redirect to Instagram URL scheme (may not work)');
                             } catch (e) {
-                                console.error('Redirect failed:', e);
+                                console.error('Delayed redirect failed:', e);
+                            }
+                        }, 500);
+                        
+                        // And try one more time after longer delay
+                        setTimeout(function() {
+                            try {
+                                console.log('Final redirect attempt...');
+                                window.location.href = redirectUrl;
+                            } catch (e) {
+                                console.error('Final redirect failed:', e);
                             }
                         }, 2000);
                     } else {
