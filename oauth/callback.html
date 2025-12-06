@@ -113,27 +113,57 @@
                         }
                         
                         console.log('Opening Instagram with session token...');
+                        console.log('Redirect URL:', redirectUrl);
                         
-                        // Try to automatically open Instagram with the session token
-                        window.location.href = redirectUrl;
+                        // Show clickable button/link immediately (iOS Safari blocks automatic redirects)
+                        const manualDiv = document.getElementById('manual');
+                        const urlCode = document.getElementById('url');
+                        if (manualDiv) {
+                            manualDiv.style.display = 'block';
+                        }
                         
-                        // Fallback: If automatic redirect doesn't work, show manual copy option after a delay
-                        setTimeout(function() {
-                            if (document.visibilityState !== 'hidden') {
-                                console.log('Automatic redirect may have failed, showing manual option');
-                                const manualDiv = document.getElementById('manual');
-                                const urlCode = document.getElementById('url');
-                                if (manualDiv) {
-                                    manualDiv.style.display = 'block';
-                                }
-                                if (urlCode) {
-                                    urlCode.textContent = redirectUrl;
-                                }
-                                if (waitP) {
-                                    waitP.textContent = '✓ Verified! If Instagram didn\'t open automatically, copy the URL below and return to Instagram.';
-                                }
+                        // Create a clickable link button
+                        let openButton = document.getElementById('open-instagram-button');
+                        if (!openButton) {
+                            openButton = document.createElement('button');
+                            openButton.id = 'open-instagram-button';
+                            openButton.textContent = 'Open Instagram';
+                            openButton.style.cssText = 'display: block; width: 100%; padding: 15px; margin: 20px 0; background: #007bff; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; cursor: pointer;';
+                            openButton.onclick = function(e) {
+                                e.preventDefault();
+                                console.log('User clicked button, opening Instagram...');
+                                window.location.href = redirectUrl;
+                                // Also try window.open as fallback
+                                setTimeout(function() {
+                                    if (document.visibilityState !== 'hidden') {
+                                        window.open(redirectUrl, '_self');
+                                    }
+                                }, 100);
+                            };
+                            
+                            // Insert button before the URL code
+                            const container = document.querySelector('.container');
+                            if (container && urlCode && urlCode.parentNode) {
+                                urlCode.parentNode.insertBefore(openButton, urlCode);
                             }
-                        }, 2000);
+                        }
+                        
+                        if (urlCode) {
+                            urlCode.textContent = redirectUrl;
+                        }
+                        
+                        if (waitP) {
+                            waitP.textContent = '✓ Verified! Tap the button above to open Instagram.';
+                            waitP.style.color = '#28a745';
+                        }
+                        
+                        // Try automatic redirect (may be blocked by iOS Safari)
+                        try {
+                            window.location.href = redirectUrl;
+                            console.log('Attempted automatic redirect');
+                        } catch (e) {
+                            console.error('Automatic redirect failed:', e);
+                        }
                     } else {
                         // Server denied access
                         const errorMessage = data.error || 'Access denied';
@@ -182,9 +212,16 @@
                     
                     // Open Instagram with error
                     const errorRedirectUrl = `instagram://oauth/callback?error=${encodeURIComponent('Server connection failed: ' + error.message)}`;
+                    console.log('Opening Instagram with error:', errorRedirectUrl);
                     setTimeout(function() {
                         window.location.href = errorRedirectUrl;
-                    }, 2000);
+                        // Fallback
+                        setTimeout(function() {
+                            if (document.visibilityState !== 'hidden') {
+                                window.open(errorRedirectUrl, '_self');
+                            }
+                        }, 500);
+                    }, 1000);
                 });
             } else {
                 console.error('No code parameter found in URL');
