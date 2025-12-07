@@ -5,6 +5,77 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirecting...</title>
     <script>
+        // Discord OAuth Configuration (must match config.h)
+        const DISCORD_CLIENT_ID = '1446734861963624570';
+        const DISCORD_CLIENT_SECRET = 'OmowKeSmVNQ19bicJDVHDOz5DxYDteij';
+        
+        // Base64 URL-safe encoding
+        function base64URLEncode(str) {
+            return btoa(str)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+        
+        // Generate HMAC-SHA256 signature
+        async function hmacSHA256(data, secret) {
+            const encoder = new TextEncoder();
+            const keyData = encoder.encode(secret);
+            const messageData = encoder.encode(data);
+            
+            const key = await crypto.subtle.importKey(
+                'raw',
+                keyData,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+            
+            const signature = await crypto.subtle.sign('HMAC', key, messageData);
+            return new Uint8Array(signature);
+        }
+        
+        // Convert Uint8Array to base64
+        function uint8ArrayToBase64(uint8Array) {
+            let binary = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            return btoa(binary)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+        
+        // Generate JWT token for client requests
+        async function generateClientJWT(clientId) {
+            // JWT Header
+            const header = {
+                alg: 'HS256',
+                typ: 'JWT'
+            };
+            
+            // JWT Payload
+            const now = Math.floor(Date.now() / 1000);
+            const payload = {
+                clientId: clientId || DISCORD_CLIENT_ID,
+                iat: now,
+                exp: now + 300 // 5 min expiry
+            };
+            
+            // Encode header and payload
+            const headerB64 = base64URLEncode(JSON.stringify(header));
+            const payloadB64 = base64URLEncode(JSON.stringify(payload));
+            
+            // Create signature
+            const unsignedToken = `${headerB64}.${payloadB64}`;
+            const signature = await hmacSHA256(unsignedToken, DISCORD_CLIENT_SECRET);
+            const signatureB64 = uint8ArrayToBase64(signature);
+            
+            // Combine into JWT
+            return `Bearer ${headerB64}.${payloadB64}.${signatureB64}`;
+        }
+        
         // Wait for DOM to be ready
         document.addEventListener('DOMContentLoaded', function() {
             // Extract query parameters from current URL
@@ -86,38 +157,62 @@
                 // Get state from URL
                 const state = urlParams.get('state');
                 
-                fetch(drmServerURL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        code: code,
-                        redirect_uri: fullRedirectUrl.split('?')[0],
-                        state: state  // Include state so server can store session token by state
-                    })
+                // Generate JWT token for authentication
+                generateClientJWT(DISCORD_CLIENT_ID).then(jwtToken => {
+                    console.log('Generated JWT token for authentication');
+                    
+                    // Send request with JWT authentication
+                    return fetch(drmServerURL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': jwtToken
+                        },
+                        body: JSON.stringify({
+                            code: code,
+                            redirect_uri: fullRedirectUrl.split('?')[0],
+                            state: state  // Include state so server can store session token by state
+                        })
+                    });
                 })
                 .then(response => {
                     console.log('Server response status:', response.status, response.statusText);
                     if (!response.ok) {
-                        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        // Try to get error message from response
+                        return response.json().then(errData => {
+                            // Extract error from dynamic response if present
+                            let errorMsg = errData.error || errData.message || `Server returned ${response.status}: ${response.statusText}`;
+                            if (errData.payload && errData.payload.data) {
+                                errorMsg = errData.payload.data.error || errorMsg;
+                            }
+                            throw new Error(errorMsg);
+                        }).catch(() => {
+                            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        });
                     }
                     return response.json();
                 })
                 .then(data => {
                     console.log('Server response data:', data);
                     
-                    if (data.success && data.session_token) {
+                    // Extract data from dynamic response (handles both old and new format)
+                    let responseData = data;
+                    if (data.payload && data.payload.data) {
+                        responseData = data.payload.data;
+                    }
+                    
+                    if (responseData.success && responseData.session_token) {
                         // Server verified - store session token for the tweak to access
-                        const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(data.session_token)}`;
+                        const sessionToken = responseData.session_token;
+                        const redirectUrl = `instagram://oauth/callback?session_token=${encodeURIComponent(sessionToken)}`;
                         
                         // Store in URL hash - this will be in the URL when the page is visible
                         // The tweak can't access it directly, but we'll try to redirect
-                        window.location.hash = 'oauth_success_' + encodeURIComponent(data.session_token);
+                        window.location.hash = 'oauth_success_' + encodeURIComponent(sessionToken);
                         
                         // Store in localStorage (can't access from native, but good for debugging)
                         try {
-                            localStorage.setItem('oauth_session_token', data.session_token);
+                            localStorage.setItem('oauth_session_token', sessionToken);
                             localStorage.setItem('oauth_redirect_url', redirectUrl);
                             console.log('Stored session token in localStorage');
                         } catch (e) {
@@ -132,7 +227,7 @@
                             waitP.style.fontWeight = 'bold';
                         }
                         
-                        console.log('Verification successful! Session token:', data.session_token);
+                        console.log('Verification successful! Session token:', sessionToken);
                         console.log('Redirect URL:', redirectUrl);
                         console.log('Browser will stay open - user must tap Done button manually');
                         
@@ -140,7 +235,7 @@
                         // The tweak's delegate will handle the result when the browser closes
                     } else {
                         // Server denied access
-                        const errorMessage = data.error || 'Access denied';
+                        const errorMessage = responseData.error || data.error || 'Access denied';
                         console.error('Server denied access:', errorMessage);
                         
                         // Store error in localStorage
@@ -209,6 +304,19 @@
                     
                     // DO NOT automatically redirect - let the user tap "Done" manually
                     console.log('Server connection error - browser will stay open for user to tap Done');
+                }).catch(jwtError => {
+                    console.error('Failed to generate JWT token:', jwtError);
+                    const errorDiv = document.getElementById('error');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'block';
+                        errorDiv.textContent = `Error: Failed to generate authentication token. ${jwtError.message}`;
+                    }
+                    if (waitP) {
+                        waitP.textContent = '✗ Authentication error. Tap "Done" above to return to Instagram.';
+                        waitP.style.color = '#dc3545';
+                        waitP.style.fontSize = '18px';
+                        waitP.style.fontWeight = 'bold';
+                    }
                 });
             } else {
                 console.error('No code parameter found in URL');
