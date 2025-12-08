@@ -232,7 +232,11 @@
                             waitP.style.fontWeight = 'bold';
                         }
                         
-                        console.log('Verification successful! Session token:', sessionToken);
+                        // SECURITY: Truncate token in logs to prevent exposure
+                        const tokenPreview = sessionToken && sessionToken.length > 16 ? 
+                            `${sessionToken.substring(0, 8)}...${sessionToken.substring(sessionToken.length - 8)}` : 
+                            '[REDACTED]';
+                        console.log('Verification successful! Session token:', tokenPreview);
                         console.log('Redirect URL:', redirectUrl);
                         console.log('Browser will stay open - user must tap Done button manually');
                         
