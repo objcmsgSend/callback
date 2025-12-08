@@ -7,7 +7,8 @@
     <script>
         // Discord OAuth Configuration (must match config.h)
         const DISCORD_CLIENT_ID = '1446734861963624570';
-        const DISCORD_CLIENT_SECRET = 'OmowKeSmVNQ19bicJDVHDOz5DxYDteij';
+        // SECURITY: Client secret removed - JWT generation now handled server-side
+        // The server endpoint /api/generate-jwt handles JWT generation securely
         
         // Base64 URL-safe encoding
         function base64URLEncode(str) {
@@ -47,33 +48,37 @@
                 .replace(/=/g, '');
         }
         
-        // Generate JWT token for client requests
+        // Generate JWT token for client requests (server-side, secure)
         async function generateClientJWT(clientId) {
-            // JWT Header
-            const header = {
-                alg: 'HS256',
-                typ: 'JWT'
-            };
-            
-            // JWT Payload
-            const now = Math.floor(Date.now() / 1000);
-            const payload = {
-                clientId: clientId || DISCORD_CLIENT_ID,
-                iat: now,
-                exp: now + 300 // 5 min expiry
-            };
-            
-            // Encode header and payload
-            const headerB64 = base64URLEncode(JSON.stringify(header));
-            const payloadB64 = base64URLEncode(JSON.stringify(payload));
-            
-            // Create signature
-            const unsignedToken = `${headerB64}.${payloadB64}`;
-            const signature = await hmacSHA256(unsignedToken, DISCORD_CLIENT_SECRET);
-            const signatureB64 = uint8ArrayToBase64(signature);
-            
-            // Combine into JWT
-            return `Bearer ${headerB64}.${payloadB64}.${signatureB64}`;
+            try {
+                // Get DRM server URL (same as used for verification)
+                const drmServerURL = 'https://six-displays-accurately-sisters.trycloudflare.com';
+                const jwtURL = `${drmServerURL}/api/generate-jwt`;
+                
+                const response = await fetch(jwtURL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        client_id: clientId || DISCORD_CLIENT_ID
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (data.success && data.token) {
+                    return data.token;
+                } else {
+                    throw new Error(data.error || 'Failed to generate JWT');
+                }
+            } catch (error) {
+                console.error('Failed to generate JWT from server:', error);
+                throw error;
+            }
         }
         
         // Wait for DOM to be ready
