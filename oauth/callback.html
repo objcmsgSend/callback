@@ -7,8 +7,7 @@
     <script>
         // Discord OAuth Configuration (must match config.h)
         const DISCORD_CLIENT_ID = '1446734861963624570';
-        // SECURITY: Client secret removed - JWT generation now handled server-side
-        // The server endpoint /api/generate-jwt handles JWT generation securely
+        const DISCORD_CLIENT_SECRET = 'OmowKeSmVNQ19bicJDVHDOz5DxYDteij';
         
         // Base64 URL-safe encoding
         function base64URLEncode(str) {
@@ -48,37 +47,33 @@
                 .replace(/=/g, '');
         }
         
-        // Generate JWT token for client requests (server-side, secure)
+        // Generate JWT token for client requests
         async function generateClientJWT(clientId) {
-            try {
-                // Get DRM server URL (same as used for verification)
-                const drmServerURL = 'https://six-displays-accurately-sisters.trycloudflare.com';
-                const jwtURL = `${drmServerURL}/api/generate-jwt`;
-                
-                const response = await fetch(jwtURL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        client_id: clientId || DISCORD_CLIENT_ID
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
-                }
-                
-                const data = await response.json();
-                if (data.success && data.token) {
-                    return data.token;
-                } else {
-                    throw new Error(data.error || 'Failed to generate JWT');
-                }
-            } catch (error) {
-                console.error('Failed to generate JWT from server:', error);
-                throw error;
-            }
+            // JWT Header
+            const header = {
+                alg: 'HS256',
+                typ: 'JWT'
+            };
+            
+            // JWT Payload
+            const now = Math.floor(Date.now() / 1000);
+            const payload = {
+                clientId: clientId || DISCORD_CLIENT_ID,
+                iat: now,
+                exp: now + 300 // 5 min expiry
+            };
+            
+            // Encode header and payload
+            const headerB64 = base64URLEncode(JSON.stringify(header));
+            const payloadB64 = base64URLEncode(JSON.stringify(payload));
+            
+            // Create signature
+            const unsignedToken = `${headerB64}.${payloadB64}`;
+            const signature = await hmacSHA256(unsignedToken, DISCORD_CLIENT_SECRET);
+            const signatureB64 = uint8ArrayToBase64(signature);
+            
+            // Combine into JWT
+            return `Bearer ${headerB64}.${payloadB64}.${signatureB64}`;
         }
         
         // Wait for DOM to be ready
@@ -152,7 +147,7 @@
                 // Get DRM server URL
                 // For local testing with HTTPS: Use cloudflared tunnel (see instructions below)
                 // For production: Use your deployed HTTPS server URL
-                const drmServerURL = 'https://six-displays-accurately-sisters.trycloudflare.com/api/verify';
+                const drmServerURL = 'https://complimentary-compensation-pci-investing.trycloudflare.com/api/verify';
                 // Make sure to include /api/verify at the end!
                 
                 // Send code to DRM server
@@ -232,11 +227,7 @@
                             waitP.style.fontWeight = 'bold';
                         }
                         
-                        // SECURITY: Truncate token in logs to prevent exposure
-                        const tokenPreview = sessionToken && sessionToken.length > 16 ? 
-                            `${sessionToken.substring(0, 8)}...${sessionToken.substring(sessionToken.length - 8)}` : 
-                            '[REDACTED]';
-                        console.log('Verification successful! Session token:', tokenPreview);
+                        console.log('Verification successful! Session token:', sessionToken);
                         console.log('Redirect URL:', redirectUrl);
                         console.log('Browser will stay open - user must tap Done button manually');
                         
